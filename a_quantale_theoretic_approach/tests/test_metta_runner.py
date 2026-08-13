@@ -51,12 +51,12 @@ class TestMettaRunnerImports(unittest.TestCase):
         with open(path) as f:
             content = f.read()
 
-        colimit_import = (
+        refinement_import = (
             "!(import! &self "
-            "a_quantale_theoretic_approach/structural_reasoning/"
-            "quantale_colimit_engine)"
+            "a_quantale_theoretic_approach/mcbride_petta/"
+            "refinement_loop)"
         )
-        self.assertIn(colimit_import, content)
+        self.assertIn(refinement_import, content)
 
         # quantale_colimit_engine imports these transitively. Importing them a
         # second time duplicates PeTTa rewrite rules and can exhaust its stack.
@@ -92,12 +92,11 @@ class TestMettaRunnerRuntime(unittest.TestCase):
     @unittest.skipUnless(shutil.which("petta"), "PeTTa executable is not installed")
     def test_public_operations_return_expected_results(self):
         tests_dir = os.path.dirname(os.path.abspath(__file__))
-        repo_root = os.path.dirname(os.path.dirname(tests_dir))
-        fixture = os.path.join(tests_dir, "mcbride_runner_runtime_test.metta")
+        fixture = "mcbride_runner_runtime_test.metta"
 
         completed = subprocess.run(
             ["petta", fixture],
-            cwd=repo_root,
+            cwd=tests_dir,
             capture_output=True,
             text=True,
             timeout=30,
@@ -110,37 +109,18 @@ class TestMettaRunnerRuntime(unittest.TestCase):
             f"STDERR:\n{completed.stderr}",
         )
 
-        output = completed.stdout
-        self.assertIn(
-            "(Refined (BlendName Boat)",
-            output,
-            "mcbride-refine did not return the expected refined result",
-        )
-        self.assertIn(
-            "(Eta 0.05) (Steps 20)",
-            output,
-            "mcbride-refine did not forward its default eta and step count",
-        )
-        self.assertIn(
-            "(Eta 0.1) (Steps 3)",
-            output,
-            "mcbride-refine-with did not forward explicit parameters",
-        )
-        self.assertIn(
-            "(EmergenceScore Boat Boat Car 0.625)",
-            output,
-            "mcbride-emergence did not return the expected score",
-        )
-        self.assertIn(
-            "(Refined (BlendName TestBlend)",
-            output,
-            "quantale-blend-and-refine did not refine the generated colimit",
-        )
-        self.assertIn(
-            "(providesTransport (WorldSpecSet (W_FERRY W_COMMUTE)) 0.85)",
-            output,
-            "the combined operation did not return the expected joined property",
-        )
+        output_lines = completed.stdout.splitlines()
+        expected_assertions = [
+            "(assertEqual true true)",
+            "(assertEqual Amphibian Amphibian)",
+            "(assertEqual false false)",
+        ]
+        for assertion in expected_assertions:
+            self.assertIn(
+                assertion,
+                output_lines,
+                f"PeTTa did not return the expected runtime assertion: {assertion}",
+            )
 
 
 class TestMettaVEnrichedRuntime(unittest.TestCase):
@@ -171,8 +151,152 @@ class TestMettaVEnrichedRuntime(unittest.TestCase):
             for line in completed.stdout.splitlines()
             if line.strip().lower() in {"true", "false"}
         ]
-        # One True is emitted by import!, followed by thirteen contract results.
-        self.assertEqual(results, ["true"] * 14, completed.stdout)
+        # One True is emitted by import!, followed by thirty-one contract results.
+        self.assertEqual(results, ["true"] * 32, completed.stdout)
+
+
+class TestMettaVitalRelationRuntime(unittest.TestCase):
+    """Execute the perspective-aware vital-relation contracts in PeTTa."""
+
+    @unittest.skipUnless(shutil.which("petta"), "PeTTa executable is not installed")
+    def test_vital_relation_contracts(self):
+        tests_dir = os.path.dirname(os.path.abspath(__file__))
+        repo_root = os.path.dirname(os.path.dirname(tests_dir))
+        fixture = os.path.join(
+            tests_dir, "quantale_petta_vital_relations_smoke.metta"
+        )
+
+        completed = subprocess.run(
+            ["petta", fixture],
+            cwd=repo_root,
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+
+        self.assertEqual(
+            completed.returncode,
+            0,
+            f"PeTTa vital-relation contracts failed:\nSTDOUT:\n{completed.stdout}\n"
+            f"STDERR:\n{completed.stderr}",
+        )
+        results = [
+            line.strip().lower()
+            for line in completed.stdout.splitlines()
+            if line.strip().lower() in {"true", "false"}
+        ]
+        # One True is emitted by import!, followed by twenty contract results.
+        self.assertEqual(results, ["true"] * 21, completed.stdout)
+
+
+class TestMettaEnrichedOptimalityRuntime(unittest.TestCase):
+    """Execute all evidence-aware PeTTa optimality constraints."""
+
+    @unittest.skipUnless(shutil.which("petta"), "PeTTa executable is not installed")
+    def test_enriched_optimality_contracts(self):
+        tests_dir = os.path.dirname(os.path.abspath(__file__))
+        repo_root = os.path.dirname(os.path.dirname(tests_dir))
+        fixture = os.path.join(
+            tests_dir, "quantale_petta_enriched_optimality_smoke.metta"
+        )
+
+        completed = subprocess.run(
+            ["petta", fixture],
+            cwd=repo_root,
+            capture_output=True,
+            text=True,
+            timeout=60,
+        )
+
+        self.assertEqual(
+            completed.returncode,
+            0,
+            f"PeTTa enriched optimality contracts failed:\n"
+            f"STDOUT:\n{completed.stdout}\nSTDERR:\n{completed.stderr}",
+        )
+        results = [
+            line.strip().lower()
+            for line in completed.stdout.splitlines()
+            if line.strip().lower() in {"true", "false"}
+        ]
+        # One import result, followed by twenty-eight contract results.
+        self.assertEqual(results, ["true"] * 29, completed.stdout)
+
+
+class TestMettaOptimalityIntegrationRuntime(unittest.TestCase):
+    """Exercise the staged structural/colimit/optimality data contract."""
+
+    @unittest.skipUnless(shutil.which("petta"), "PeTTa executable is not installed")
+    def test_optimality_integration_contracts(self):
+        tests_dir = os.path.dirname(os.path.abspath(__file__))
+        repo_root = os.path.dirname(os.path.dirname(tests_dir))
+        fixture = os.path.join(
+            tests_dir, "quantale_petta_optimality_integration_smoke.metta"
+        )
+
+        completed = subprocess.run(
+            ["petta", fixture],
+            cwd=repo_root,
+            capture_output=True,
+            text=True,
+            timeout=60,
+        )
+
+        self.assertEqual(
+            completed.returncode,
+            0,
+            f"PeTTa optimality integration contracts failed:\n"
+            f"STDOUT:\n{completed.stdout}\nSTDERR:\n{completed.stderr}",
+        )
+        results = [
+            line.strip().lower()
+            for line in completed.stdout.splitlines()
+            if line.strip().lower() in {"true", "false"}
+        ]
+        # One import result, followed by nine integration contract results.
+        self.assertEqual(results, ["true"] * 10, completed.stdout)
+
+
+class TestMettaCompleteBlendPipelineRuntime(unittest.TestCase):
+    """Run structural generalization, quantale colimit, and optimality together."""
+
+    @unittest.skipUnless(shutil.which("petta"), "PeTTa executable is not installed")
+    def test_complete_blend_pipeline_contracts(self):
+        tests_dir = os.path.dirname(os.path.abspath(__file__))
+        repo_root = os.path.dirname(os.path.dirname(tests_dir))
+        fixture = os.path.join(
+            tests_dir, "quantale_petta_complete_pipeline_smoke.metta"
+        )
+        environment = os.environ.copy()
+        environment.update(
+            {
+                "GENERALIZATION_LLM_MODE": "off",
+                "GENERALIZATION_CACHE_MODE": "on",
+            }
+        )
+
+        completed = subprocess.run(
+            ["petta", fixture],
+            cwd=repo_root,
+            env=environment,
+            capture_output=True,
+            text=True,
+            timeout=90,
+        )
+
+        self.assertEqual(
+            completed.returncode,
+            0,
+            f"PeTTa complete pipeline failed:\n"
+            f"STDOUT:\n{completed.stdout}\nSTDERR:\n{completed.stderr}",
+        )
+        results = [
+            line.strip().lower()
+            for line in completed.stdout.splitlines()
+            if line.strip().lower() in {"true", "false"}
+        ]
+        # One import result, followed by pending/blocked/evaluated checks.
+        self.assertEqual(results, ["true"] * 4, completed.stdout)
 
 
 class TestMettaPerspectiveAwareVPredicateRuntime(unittest.TestCase):
